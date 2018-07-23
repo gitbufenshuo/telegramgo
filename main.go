@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/shelomentsevd/mtproto"
+	"github.com/gitbufenshuo/mtproto"
 )
 
 const updatePeriod = time.Second * 2
