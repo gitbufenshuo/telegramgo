@@ -512,6 +512,7 @@ func main() {
 		var phonenumber string
 		fmt.Println("Enter phonenumber number below: ")
 		fmt.Scanln(&phonenumber)
+		fmt.Println(phonenumber)
 		err := telegramCLI.Authorization(phonenumber)
 		if err != nil {
 			log.Fatal(err)
