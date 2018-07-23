@@ -107,6 +107,7 @@ func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	fmt.Println("i_0")
 	sentCode, err := cli.mtproto.AuthSendCode(phonenumber)
 	if err != nil {
+		fmt.Println("AuthSendCode_err", err)
 		return err
 	}
 	fmt.Println("i_.")
