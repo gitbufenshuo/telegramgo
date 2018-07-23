@@ -516,11 +516,16 @@ func main() {
 			log.Fatal(err)
 		}
 	}
+	fmt.Println(".")
 	if err := telegramCLI.LoadContacts(); err != nil {
 		log.Fatalf("Failed to load contacts: %s", err)
 	}
+	fmt.Println("..")
+
 	// Show help first time
 	help()
+	fmt.Println("...")
+
 	stop := make(chan struct{}, 1)
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
