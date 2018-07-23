@@ -104,15 +104,16 @@ func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	if phonenumber == "" {
 		return fmt.Errorf("Phone number is empty")
 	}
+	fmt.Println("i_0")
 	sentCode, err := cli.mtproto.AuthSendCode(phonenumber)
 	if err != nil {
 		return err
 	}
-
+	fmt.Println("i_.")
 	if !sentCode.Phone_registered {
 		return fmt.Errorf("Phone number isn't registered")
 	}
-
+	fmt.Println("i_..")
 	var code string
 	fmt.Printf("Enter code: ")
 	fmt.Scanf("%s", &code)
