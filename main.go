@@ -497,7 +497,7 @@ func main() {
 	log.Println("Program started")
 
 	// LoadContacts
-	mtproto, err := mtproto.NewMTProto(41994, "269069e15c81241f5670c397941016a2", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo", false))
+	mtproto, err := mtproto.NewMTProto(379188, "19d1c51522e82a025049a555266611b7", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo", false))
 	if err != nil {
 		log.Fatal(err)
 	}
