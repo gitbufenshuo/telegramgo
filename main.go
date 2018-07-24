@@ -105,6 +105,11 @@ func (cli *TelegramCLI) GetConfig() error {
 	if err != nil {
 		return err
 	}
+	for idx := range config.Dc_options {
+		tl := config.Dc_options[idx]
+		fmt.Println(idx, "==--==")
+		fmt.Println(tl.(mtproto.TL_dcOption))
+	}
 	fmt.Println(*config)
 	return nil
 }
