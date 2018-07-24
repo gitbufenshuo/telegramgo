@@ -100,6 +100,14 @@ func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
 	return cli, nil
 }
 
+func (cli *TelegramCLI) GetConfig() error {
+	config, err := cli.mtproto.HelpGetConfig()
+	if err != nil {
+		fmt.Println(*config)
+	}
+	return err
+}
+
 func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	if phonenumber == "" {
 		return fmt.Errorf("Phone number is empty")
@@ -509,6 +517,14 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Println("Welcome to telegram CLI")
+	{
+		if err := telegramCLI.GetConfig(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		} else {
+			fmt.Println("success_get_config")
+		}
+	}
 	if err := telegramCLI.CurrentUser(); err != nil {
 		var phonenumber string
 		fmt.Println("Enter phonenumber number below: ")
