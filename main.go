@@ -103,9 +103,10 @@ func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
 func (cli *TelegramCLI) GetConfig() error {
 	config, err := cli.mtproto.HelpGetConfig()
 	if err != nil {
-		fmt.Println(*config)
+		return err
 	}
-	return err
+	fmt.Println(*config)
+	return nil
 }
 
 func (cli *TelegramCLI) Authorization(phonenumber string) error {
