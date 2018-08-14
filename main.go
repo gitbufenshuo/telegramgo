@@ -100,6 +100,7 @@ func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
 	return cli, nil
 }
 
+/////////////////// mything
 func (cli *TelegramCLI) GetConfig() error {
 	config, err := cli.mtproto.HelpGetConfig()
 	if err != nil {
@@ -113,7 +114,15 @@ func (cli *TelegramCLI) GetConfig() error {
 	fmt.Println(*config)
 	return nil
 }
-
+func (cli *TelegramCLI) SearchContacts(q string, limit int) error {
+	found, err := cli.mtproto.ContactsSearch(q, limit)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	fmt.Println(*found)
+	return nil
+}
 func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	if phonenumber == "" {
 		return fmt.Errorf("Phone number is empty")
@@ -404,6 +413,18 @@ func (cli *TelegramCLI) processUpdates() {
 	}
 }
 
+// import contact
+func (cli *TelegramCLI) ImportContacts(arg string) error {
+	larens := []*mtproto.TL_inputPhoneContact{}
+	onelaren := new(mtproto.TL_inputPhoneContact)
+	onelaren.First_name = fmt.Sprintf("%v", time.Now().Unix())
+	onelaren.Last_name = "_go"
+	onelaren.Phone = "+8615911150175"
+	larens = append(larens, onelaren)
+	cli.mtproto.ImportContacts(larens)
+	return nil
+}
+
 // Print contact list
 func (cli *TelegramCLI) Contacts() error {
 	tl, err := cli.mtproto.ContactsGetContacts("")
@@ -454,6 +475,10 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 		if err := cli.Contacts(); err != nil {
 			return err
 		}
+	case "importcontact":
+		if err := cli.ImportContacts(""); err != nil {
+			return err
+		}
 	case "umsg":
 		if command.Arguments == "" {
 			return errors.New("Not enough arguments: peer id and msg required")
@@ -488,6 +513,8 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 		}
 		update, err := cli.mtproto.MessagesSendMessage(false, false, false, true, mtproto.TL_inputPeerChat{Chat_id: int32(id)}, 0, args[1], rand.Int63(), mtproto.TL_null{}, nil)
 		cli.parseUpdate(*update)
+	case "search":
+
 	case "help":
 		help()
 	case "quit":
