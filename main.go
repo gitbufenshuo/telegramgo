@@ -68,6 +68,9 @@ func help() {
 	fmt.Println("\\contacts - Shows contacts list")
 	fmt.Println("\\umsg <id> <message> - Sends message to user with <id>")
 	fmt.Println("\\cmsg <id> <message> - Sends message to chat with <id>")
+	fmt.Println("\\pchannels - Shows information about current channels")
+	fmt.Println("\\pac - Shows information about current user_channel_ac_hash")
+	fmt.Println("\\invitechannel <channel_id> <user_id> - Invite user_id to channel_id")
 	fmt.Println("\\help - Shows this message")
 	fmt.Println("\\quit - Quit")
 }
@@ -425,6 +428,59 @@ func (cli *TelegramCLI) ImportContacts(arg string) error {
 	return nil
 }
 
+var channel_access_hash map[int32]int64
+
+// print channels
+func (cli *TelegramCLI) PrintChannels(arg string) error {
+	if channel_access_hash == nil {
+		channel_access_hash = make(map[int32]int64)
+	}
+	for k, v := range cli.channels {
+		fmt.Printf("%v-->[%v][%v]\n", k, v.Access_hash, v.Title)
+		channel_access_hash[k] = v.Access_hash
+	}
+	return nil
+}
+
+// invite one contact to one channel
+func (cli *TelegramCLI) InviteContactToChannel(arg string) error {
+	if arg == "" {
+		return errors.New("no arg spec")
+	}
+	segs := strings.Split(arg, " ")
+	i, _ := strconv.Atoi(segs[0]) // should be the channel id
+	channelid := int32(i)
+	var achash int64
+	if as, found := channel_access_hash[channelid]; !found {
+		return errors.New("wrong channel id")
+	} else {
+		achash = as
+	}
+	tl_channel := mtproto.TL_inputChannel{
+		Channel_id:  channelid,
+		Access_hash: achash,
+	}
+	// about the user
+	i, _ = strconv.Atoi(segs[1]) // should be the user id
+	userid := int32(i)
+	var userachash int64
+	if as, found := user_achash[userid]; !found {
+		return errors.New("wrong user id")
+	} else {
+		userachash = as
+	}
+	tl_users := []mtproto.TL{}
+	ele_user := mtproto.TL_inputUser{
+		User_id:     userid,
+		Access_hash: userachash,
+	}
+	tl_users = append(tl_users, ele_user)
+	cli.mtproto.InviteToChannel(tl_users, tl_channel)
+	return nil
+}
+
+var user_achash map[int32]int64
+
 // Print contact list
 func (cli *TelegramCLI) Contacts() error {
 	tl, err := cli.mtproto.ContactsGetContacts("")
@@ -453,12 +509,16 @@ func (cli *TelegramCLI) Contacts() error {
 			return err
 		}
 		fmt.Printf(
-			"%10d    %10t    %-30s    %-20s\n",
+			"%10d    %10t    %-30s    %-20s  %-20d\n",
 			v.User_id,
 			mutual,
 			fmt.Sprintf("%s %s", contacts[v.User_id].First_name, contacts[v.User_id].Last_name),
-			contacts[v.User_id].Username,
+			contacts[v.User_id].Username, contacts[v.User_id].Access_hash,
 		)
+		if user_achash == nil {
+			user_achash = make(map[int32]int64)
+		}
+		user_achash[v.User_id] = contacts[v.User_id].Access_hash
 	}
 
 	return nil
@@ -475,10 +535,8 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 		if err := cli.Contacts(); err != nil {
 			return err
 		}
-	case "importcontact":
-		if err := cli.ImportContacts(""); err != nil {
-			return err
-		}
+	case "high_invite":
+		fmt.Println(command.Arguments)
 	case "umsg":
 		if command.Arguments == "" {
 			return errors.New("Not enough arguments: peer id and msg required")
@@ -499,6 +557,17 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 		}
 		update, err := cli.mtproto.MessagesSendMessage(false, false, false, true, mtproto.TL_inputPeerUser{User_id: user.Id, Access_hash: user.Access_hash}, 0, args[1], rand.Int63(), mtproto.TL_null{}, nil)
 		cli.parseUpdate(*update)
+	case "pchannels":
+		fmt.Println(command.Arguments)
+		cli.PrintChannels(command.Arguments)
+	case "pac":
+		fmt.Println("user_access_hash", user_achash)
+		fmt.Println("channel_access_hash", channel_access_hash)
+	case "invitechannel":
+		err := cli.InviteContactToChannel(command.Arguments)
+		if err != nil {
+			fmt.Println(err)
+		}
 	case "cmsg":
 		if command.Arguments == "" {
 			return errors.New("Not enough arguments: peer id and msg required")
