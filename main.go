@@ -362,10 +362,12 @@ func (cli *TelegramCLI) processUpdates() {
 }
 
 func (cli *TelegramCLI) Import_Invite_Delete() error {
-
-	cli.processUpdates()
-	time.Sleep(time.Second * 10)
-	cli.PrintChannels("")
+	for idx := 0; idx != 10; idx++ {
+		fmt.Println("-------")
+		time.Sleep(time.Second * 1)
+		cli.processUpdates()
+		cli.PrintChannels("")
+	}
 	fmt.Println("channel_access_hash->", channel_access_hash)
 	if len(channel_access_hash) == 0 {
 		os.Exit(1)
