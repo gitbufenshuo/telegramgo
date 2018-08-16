@@ -592,7 +592,8 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 }
 
 func main() {
-	logfile, err := os.OpenFile("logfile.txt", os.O_RDWR|os.O_CREATE, 0666)
+	whotele := os.Getenv("whotele")
+	logfile, err := os.OpenFile(whotele+"_logfile.txt", os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
@@ -602,7 +603,7 @@ func main() {
 	log.Println("Program started")
 
 	// LoadContacts
-	mtproto, err := mtproto.NewMTProto(400495, "180b6f8d2cc00beb4dbca0500416a41f", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo", false))
+	mtproto, err := mtproto.NewMTProto(400495, "180b6f8d2cc00beb4dbca0500416a41f", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo."+whotele, false))
 	if err != nil {
 		log.Fatal(err)
 	}
