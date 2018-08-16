@@ -416,6 +416,10 @@ func (cli *TelegramCLI) processUpdates() {
 	}
 }
 
+func (cli *TelegramCLI) Import_Invite_Delete() error {
+
+}
+
 // import contact
 func (cli *TelegramCLI) ImportContacts(arg string) error {
 	larens := []*mtproto.TL_inputPhoneContact{}
@@ -607,7 +611,7 @@ func main() {
 	log.Println("Program started")
 
 	// LoadContacts
-	mtproto, err := mtproto.NewMTProto(379188, "19d1c51522e82a025049a555266611b7", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo", false))
+	mtproto, err := mtproto.NewMTProto(400495, "180b6f8d2cc00beb4dbca0500416a41f", mtproto.WithAuthFile(os.Getenv("HOME")+"/.telegramgo", false))
 	if err != nil {
 		log.Fatal(err)
 	}
