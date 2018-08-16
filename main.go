@@ -7,10 +7,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gitbufenshuo/mtproto"
@@ -40,27 +38,6 @@ func formatDate(date int32) string {
 	return unixTime.Format(time.RFC822)
 }
 
-// Reads user input and returns Command pointer
-func (cli *TelegramCLI) readCommand() *Command {
-	fmt.Printf("\nUser input: ")
-	input, err := cli.reader.ReadString('\n')
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	if input[0] != '\\' {
-		return nil
-	}
-	command := new(Command)
-	input = strings.TrimSpace(input)
-	args := strings.SplitN(input, " ", 2)
-	command.Name = strings.ToLower(strings.Replace(args[0], "\\", "", 1))
-	if len(args) > 1 {
-		command.Arguments = args[1]
-	}
-	return command
-}
-
 // Show help
 func help() {
 	fmt.Println("Available commands:")
@@ -78,10 +55,7 @@ func help() {
 type TelegramCLI struct {
 	mtproto   *mtproto.MTProto
 	state     *mtproto.TL_updates_state
-	read      chan struct{}
-	stop      chan struct{}
 	connected bool
-	reader    *bufio.Reader
 	users     map[int32]mtproto.TL_user
 	chats     map[int32]mtproto.TL_chat
 	channels  map[int32]mtproto.TL_channel
@@ -93,9 +67,6 @@ func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
 	}
 	cli := new(TelegramCLI)
 	cli.mtproto = pMTProto
-	cli.read = make(chan struct{}, 1)
-	cli.stop = make(chan struct{}, 1)
-	cli.reader = bufio.NewReader(os.Stdin)
 	cli.users = make(map[int32]mtproto.TL_user)
 	cli.chats = make(map[int32]mtproto.TL_chat)
 	cli.channels = make(map[int32]mtproto.TL_channel)
@@ -217,40 +188,14 @@ func (cli *TelegramCLI) Disconnect() error {
 	return nil
 }
 
-// Send signal to stop update cycle
-func (cli *TelegramCLI) Stop() {
-	cli.stop <- struct{}{}
-}
-
-// Send signal to read user input
-func (cli *TelegramCLI) Read() {
-	cli.read <- struct{}{}
-}
-
 // Run telegram cli
 func (cli *TelegramCLI) Run() error {
-	// Update cycle
-	log.Println("CLI Update cycle started")
-UpdateCycle:
-	for {
-		select {
-		case <-cli.read:
-			command := cli.readCommand()
-			log.Println("User input: ")
-			log.Println(*command)
-			err := cli.RunCommand(command)
-			if err != nil {
-				log.Println(err)
-			}
-		case <-cli.stop:
-			log.Println("Update cycle stoped")
-			break UpdateCycle
-		case <-time.After(updatePeriod):
-			log.Println("Trying to get update from server...")
-			cli.processUpdates()
-		}
+	command := new(Command)
+	command.Name = "iid"
+	err := cli.RunCommand(command)
+	if err != nil {
+		log.Println(err)
 	}
-	log.Println("CLI Update cycle finished")
 	return nil
 }
 
@@ -418,15 +363,53 @@ func (cli *TelegramCLI) processUpdates() {
 
 func (cli *TelegramCLI) Import_Invite_Delete() error {
 
+	cli.processUpdates()
+	time.Sleep(time.Second * 10)
+	cli.PrintChannels("")
+	fmt.Println("channel_access_hash->", channel_access_hash)
+	if len(channel_access_hash) == 0 {
+		os.Exit(1)
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		text := scanner.Text()
+		fmt.Println(text, "___", time.Now().Unix())
+		cli.ImportContacts(text) // Import
+		time.Sleep(time.Second * 1)
+		var uid int32
+		var uhash int64
+		{
+			// refresh my contacts
+			cli.Contacts()
+			time.Sleep(time.Second * 1)
+			fmt.Println("user_hash->", user_achash)
+			for _uid := range user_achash {
+				uid = _uid
+				uhash = user_achash[_uid]
+			}
+		}
+		cli.InviteContactToChannel(fmt.Sprintf("1189158201 %v", uid)) // Invite
+		time.Sleep(time.Second * 1)
+		tl := new(mtproto.TL_inputUser) // delete
+		{
+			// userid and access_hash to compose tl
+			tl.User_id = uid
+			tl.Access_hash = uhash
+		}
+		cli.mtproto.DeleteContact(tl)
+
+	}
+	fmt.Println("all_over")
+	return nil
 }
 
 // import contact
 func (cli *TelegramCLI) ImportContacts(arg string) error {
 	larens := []*mtproto.TL_inputPhoneContact{}
 	onelaren := new(mtproto.TL_inputPhoneContact)
-	onelaren.First_name = fmt.Sprintf("%v", time.Now().Unix())
-	onelaren.Last_name = "_go"
-	onelaren.Phone = "+8615911150175"
+	onelaren.First_name = "golang_auto"
+	onelaren.Last_name = fmt.Sprintf("%v", time.Now().Unix())
+	onelaren.Phone = arg
 	larens = append(larens, onelaren)
 	cli.mtproto.ImportContacts(larens)
 	return nil
@@ -448,6 +431,7 @@ func (cli *TelegramCLI) PrintChannels(arg string) error {
 
 // invite one contact to one channel
 func (cli *TelegramCLI) InviteContactToChannel(arg string) error {
+	time.Sleep(time.Second * 1)
 	if arg == "" {
 		return errors.New("no arg spec")
 	}
@@ -487,6 +471,7 @@ var user_achash map[int32]int64
 
 // Print contact list
 func (cli *TelegramCLI) Contacts() error {
+	user_achash = make(map[int32]int64)
 	tl, err := cli.mtproto.ContactsGetContacts("")
 	if err != nil {
 		return err
@@ -519,10 +504,13 @@ func (cli *TelegramCLI) Contacts() error {
 			fmt.Sprintf("%s %s", contacts[v.User_id].First_name, contacts[v.User_id].Last_name),
 			contacts[v.User_id].Username, contacts[v.User_id].Access_hash,
 		)
-		if user_achash == nil {
-			user_achash = make(map[int32]int64)
+
+		if contacts[v.User_id].First_name == "golang_auto" {
+			fmt.Println("golang_auto is in")
+			user_achash[v.User_id] = contacts[v.User_id].Access_hash
+		} else {
+			fmt.Println("golang_auto is NOT")
 		}
-		user_achash[v.User_id] = contacts[v.User_id].Access_hash
 	}
 
 	return nil
@@ -531,6 +519,8 @@ func (cli *TelegramCLI) Contacts() error {
 // Runs command and prints result to console
 func (cli *TelegramCLI) RunCommand(command *Command) error {
 	switch command.Name {
+	case "iid":
+		cli.Import_Invite_Delete()
 	case "me":
 		if err := cli.CurrentUser(); err != nil {
 			return err
@@ -591,7 +581,6 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 	case "help":
 		help()
 	case "quit":
-		cli.Stop()
 		cli.Disconnect()
 	default:
 		fmt.Println("Unknow command. Try \\help to see all commands")
@@ -651,26 +640,10 @@ func main() {
 	help()
 	fmt.Println("...")
 
-	stop := make(chan struct{}, 1)
-	sigc := make(chan os.Signal, 1)
-	signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-	go func() {
-	SignalProcessing:
-		for {
-			select {
-			case <-sigc:
-				telegramCLI.Read()
-			case <-stop:
-				break SignalProcessing
-			}
-		}
-	}()
-
 	err = telegramCLI.Run()
 	if err != nil {
 		log.Println(err)
 		fmt.Println("Telegram CLI exits with error: ", err)
 	}
-	// Stop SignalProcessing goroutine
-	stop <- struct{}{}
+
 }
