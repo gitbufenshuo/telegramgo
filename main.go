@@ -110,6 +110,9 @@ func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	fmt.Println("i_.")
 	if !sentCode.Phone_registered {
 		return fmt.Errorf("Phone number isn't registered")
+	} else {
+		// zhuce
+
 	}
 	fmt.Println("i_..")
 	var code string
@@ -385,9 +388,14 @@ func (cli *TelegramCLI) Import_Invite_Delete() error {
 			cli.Contacts()
 			time.Sleep(time.Second * 1)
 			fmt.Println("user_hash->", user_achash)
-			for _uid := range user_achash {
-				uid = _uid
-				uhash = user_achash[_uid]
+			if len(user_achash) != 0 {
+				for _uid := range user_achash {
+					uid = _uid
+					uhash = user_achash[_uid]
+				}
+				fmt.Println("have__", text)
+			} else {
+				continue
 			}
 		}
 		cli.InviteContactToChannel(fmt.Sprintf("1189158201 %v", uid)) // Invite
@@ -489,23 +497,23 @@ func (cli *TelegramCLI) Contacts() error {
 			contacts[v.Id] = v
 		}
 	}
-	fmt.Printf(
-		"\033[33m\033[1m%10s    %10s    %-30s    %-20s\033[0m\n",
-		"id", "mutual", "name", "username",
-	)
+	// fmt.Printf(
+	// 	"\033[33m\033[1m%10s    %10s    %-30s    %-20s\033[0m\n",
+	// 	"id", "mutual", "name", "username",
+	// )
 	for _, v := range list.Contacts {
 		v := v.(mtproto.TL_contact)
-		mutual, err := mtproto.ToBool(v.Mutual)
+		// mutual, err := mtproto.ToBool(v.Mutual)
 		if err != nil {
 			return err
 		}
-		fmt.Printf(
-			"%10d    %10t    %-30s    %-20s  %-20d\n",
-			v.User_id,
-			mutual,
-			fmt.Sprintf("%s %s", contacts[v.User_id].First_name, contacts[v.User_id].Last_name),
-			contacts[v.User_id].Username, contacts[v.User_id].Access_hash,
-		)
+		// fmt.Printf(
+		// 	"%10d    %10t    %-30s    %-20s  %-20d\n",
+		// 	v.User_id,
+		// 	mutual,
+		// 	fmt.Sprintf("%s %s", contacts[v.User_id].First_name, contacts[v.User_id].Last_name),
+		// 	contacts[v.User_id].Username, contacts[v.User_id].Access_hash,
+		// )
 
 		if contacts[v.User_id].First_name == "golang_auto" {
 			fmt.Println("golang_auto is in")
