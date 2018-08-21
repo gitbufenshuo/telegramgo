@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"gitee.com/firewing_group/fivema"
 	"github.com/gitbufenshuo/mtproto"
 )
 
@@ -59,6 +60,12 @@ type TelegramCLI struct {
 	users     map[int32]mtproto.TL_user
 	chats     map[int32]mtproto.TL_chat
 	channels  map[int32]mtproto.TL_channel
+
+	groupid int32
+	groupac int64
+
+	userid   int32
+	userhash int64
 }
 
 func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
@@ -76,16 +83,13 @@ func NewTelegramCLI(pMTProto *mtproto.MTProto) (*TelegramCLI, error) {
 
 /////////////////// mything
 func (cli *TelegramCLI) GetConfig() error {
-	config, err := cli.mtproto.HelpGetConfig()
-	if err != nil {
-		return err
-	}
-	for idx := range config.Dc_options {
-		tl := config.Dc_options[idx]
-		fmt.Println(idx, "==--==")
-		fmt.Println(tl.(mtproto.TL_dcOption))
-	}
-	fmt.Println(*config)
+	// config, err := cli.mtproto.HelpGetConfig()
+	// if err != nil {
+	// 	return err
+	// }
+	// // for idx := range config.Dc_options {
+	// // 	tl := config.Dc_options[idx]
+	// // }
 	return nil
 }
 func (cli *TelegramCLI) SearchContacts(q string, limit int) error {
@@ -109,26 +113,52 @@ func (cli *TelegramCLI) Authorization(phonenumber string) error {
 	}
 	fmt.Println("i_.")
 	if !sentCode.Phone_registered {
-		return fmt.Errorf("Phone number isn't registered")
+		// register
+		var code string
+		fmt.Printf("Enter code__register: ")
+		// fmt.Scanf("%s", &code)
+		code = fivema.GetMessageCode()
+		if code == "" {
+			fmt.Println("code_bad")
+			return errors.New("code_bad")
+		} else {
+			fmt.Println("code_is", code)
+		}
+		auth, err := cli.mtproto.AuthSignUp(phonenumber, code, sentCode.Phone_code_hash, phonenumber, "bigwang")
+		if err != nil {
+			return err
+		}
+		userSelf := auth.User.(mtproto.TL_user)
+		cli.users[userSelf.Id] = userSelf
+		message := fmt.Sprintf("Register in: Id %d name <%s @%s %s>\n", userSelf.Id, userSelf.First_name, userSelf.Username, userSelf.Last_name)
+		fmt.Print(message)
+		log.Println(message)
+		log.Println(userSelf)
+
 	} else {
-		// zhuce
+		// login
+		var code string
+		fmt.Printf("Enter code: ")
+		code = fivema.GetMessageCode()
+		if code == "" {
+			fmt.Println("code_bad")
+			return errors.New("code_bad")
+		} else {
+			fmt.Println("code_is", code)
+		}
+		auth, err := cli.mtproto.AuthSignIn(phonenumber, code, sentCode.Phone_code_hash)
+		if err != nil {
+			return err
+		}
+
+		userSelf := auth.User.(mtproto.TL_user)
+		cli.users[userSelf.Id] = userSelf
+		message := fmt.Sprintf("Signed in: Id %d name <%s @%s %s>\n", userSelf.Id, userSelf.First_name, userSelf.Username, userSelf.Last_name)
+		fmt.Print(message)
+		log.Println(message)
+		log.Println(userSelf)
 
 	}
-	fmt.Println("i_..")
-	var code string
-	fmt.Printf("Enter code: ")
-	fmt.Scanf("%s", &code)
-	auth, err := cli.mtproto.AuthSignIn(phonenumber, code, sentCode.Phone_code_hash)
-	if err != nil {
-		return err
-	}
-
-	userSelf := auth.User.(mtproto.TL_user)
-	cli.users[userSelf.Id] = userSelf
-	message := fmt.Sprintf("Signed in: Id %d name <%s @%s %s>\n", userSelf.Id, userSelf.First_name, userSelf.Username, userSelf.Last_name)
-	fmt.Print(message)
-	log.Println(message)
-	log.Println(userSelf)
 
 	return nil
 }
@@ -193,9 +223,20 @@ func (cli *TelegramCLI) Disconnect() error {
 
 // Run telegram cli
 func (cli *TelegramCLI) Run() error {
-	command := new(Command)
-	command.Name = "iid"
-	err := cli.RunCommand(command)
+	joingroup_command := new(Command)
+	joingroup_command.Name = "joingroup"
+	err := cli.RunCommand(joingroup_command)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	if os.Getenv("only_sign") == "yes" {
+		fmt.Println("join_group_success")
+		return nil
+	}
+	forcommand := new(Command)
+	forcommand.Name = "iid"
+	err = cli.RunCommand(forcommand)
 	if err != nil {
 		log.Println(err)
 	}
@@ -364,50 +405,70 @@ func (cli *TelegramCLI) processUpdates() {
 	}
 }
 
+func (cli *TelegramCLI) Joingroup() error {
+	// first i need to join the 1189158201:id group
+	cli.groupid = 1189158201
+	inputchannel := mtproto.TL_inputChannel{}
+	inputchannel.Channel_id = cli.groupid
+	accessHash := cli.mtproto.ResolveName(mtproto.TL_contacts_resolveUsername{Username: "kexingqiu666"})
+	if accessHash == 88 {
+		fmt.Println("cant_join_group")
+		return errors.New("cant_join_group")
+	} else {
+		cli.groupac = accessHash
+		inputchannel.Access_hash = accessHash
+	}
+	cli.mtproto.JoinChannel(inputchannel)
+	return nil
+}
+
 func (cli *TelegramCLI) Import_Invite_Delete() error {
-	for idx := 0; idx != 10; idx++ {
-		fmt.Println("-------")
-		time.Sleep(time.Second * 1)
-		cli.processUpdates()
-		cli.PrintChannels("")
+
+	if cli.groupac == 0 {
+		return errors.New("cant_resolve_channel_ac")
 	}
-	fmt.Println("channel_access_hash->", channel_access_hash)
-	if len(channel_access_hash) == 0 {
-		os.Exit(1)
+	file, err := os.Open("last.txt")
+	if err != nil {
+		return errors.New("cant_find_file")
 	}
-	scanner := bufio.NewScanner(os.Stdin)
+	scanner := bufio.NewScanner(file)
+	header_phone := os.Getenv("header_phone")
+	var begin bool
+	if header_phone == "" {
+		begin = true
+	}
 	for scanner.Scan() {
 		text := scanner.Text()
-		fmt.Println(text, "___", time.Now().Unix())
+		if text == header_phone {
+			begin = true
+		}
+		if !begin {
+			continue
+		}
+		fmt.Println(text, "_text__", time.Now().Unix())
 		cli.ImportContacts(text) // Import
 		time.Sleep(time.Second * 1)
-		var uid int32
-		var uhash int64
 		{
 			// refresh my contacts
 			cli.Contacts()
 			time.Sleep(time.Second * 1)
-			fmt.Println("user_hash->", user_achash)
-			if len(user_achash) != 0 {
-				for _uid := range user_achash {
-					uid = _uid
-					uhash = user_achash[_uid]
-				}
-				fmt.Println("have__", text)
-			} else {
+			fmt.Println("user_hash->", cli.userid, cli.userhash)
+			if cli.userid == 0 {
 				continue
 			}
 		}
-		cli.InviteContactToChannel(fmt.Sprintf("1189158201 %v", uid)) // Invite
+		cli.InviteContactToChannel(fmt.Sprintf("%v %v", cli.groupid, cli.userid)) // Invite
 		time.Sleep(time.Second * 1)
 		tl := new(mtproto.TL_inputUser) // delete
 		{
 			// userid and access_hash to compose tl
-			tl.User_id = uid
-			tl.Access_hash = uhash
+			tl.User_id = cli.userid
+			tl.Access_hash = cli.userhash
 		}
 		cli.mtproto.DeleteContact(tl)
-
+		// clear cli context
+		cli.userid = 0
+		cli.userhash = 0
 	}
 	fmt.Println("all_over")
 	return nil
@@ -445,32 +506,16 @@ func (cli *TelegramCLI) InviteContactToChannel(arg string) error {
 	if arg == "" {
 		return errors.New("no arg spec")
 	}
-	segs := strings.Split(arg, " ")
-	i, _ := strconv.Atoi(segs[0]) // should be the channel id
-	channelid := int32(i)
-	var achash int64
-	if as, found := channel_access_hash[channelid]; !found {
-		return errors.New("wrong channel id")
-	} else {
-		achash = as
-	}
+
 	tl_channel := mtproto.TL_inputChannel{
-		Channel_id:  channelid,
-		Access_hash: achash,
+		Channel_id:  cli.groupid,
+		Access_hash: cli.groupac,
 	}
-	// about the user
-	i, _ = strconv.Atoi(segs[1]) // should be the user id
-	userid := int32(i)
-	var userachash int64
-	if as, found := user_achash[userid]; !found {
-		return errors.New("wrong user id")
-	} else {
-		userachash = as
-	}
+
 	tl_users := []mtproto.TL{}
 	ele_user := mtproto.TL_inputUser{
-		User_id:     userid,
-		Access_hash: userachash,
+		User_id:     cli.userid,
+		Access_hash: cli.userhash,
 	}
 	tl_users = append(tl_users, ele_user)
 	cli.mtproto.InviteToChannel(tl_users, tl_channel)
@@ -516,10 +561,11 @@ func (cli *TelegramCLI) Contacts() error {
 		// )
 
 		if contacts[v.User_id].First_name == "golang_auto" {
-			fmt.Println("golang_auto is in")
-			user_achash[v.User_id] = contacts[v.User_id].Access_hash
-		} else {
-			fmt.Println("golang_auto is NOT")
+			if cli.userid == 0 {
+				fmt.Println("golang_auto is in")
+				cli.userid = v.User_id
+				cli.userhash = contacts[v.User_id].Access_hash
+			}
 		}
 	}
 
@@ -529,6 +575,8 @@ func (cli *TelegramCLI) Contacts() error {
 // Runs command and prints result to console
 func (cli *TelegramCLI) RunCommand(command *Command) error {
 	switch command.Name {
+	case "joingroup":
+		cli.Joingroup()
 	case "iid":
 		cli.Import_Invite_Delete()
 	case "me":
@@ -598,9 +646,37 @@ func (cli *TelegramCLI) RunCommand(command *Command) error {
 	}
 	return nil
 }
-
+func lll() {
+	err := fivema.Login("hanhanjsw", "8628424han")
+	if err != nil {
+		panic("login")
+	}
+	telephone := fivema.GetPhone()
+	fmt.Println("telephone:", telephone)
+	if telephone == "" {
+		panic("getphone")
+	}
+	time.Sleep(time.Second * 30)
+	code := fivema.GetMessageCode()
+	fmt.Println("code:", code)
+	if code == "" {
+		panic("code")
+	}
+}
 func main() {
 	whotele := os.Getenv("whotele")
+	if os.Getenv("only_sign") == "yes" {
+		fivema.Release()
+		err := fivema.Login("hanhanjsw", "8628424han")
+		if err != nil {
+			panic("login")
+		}
+		telephone := fivema.GetPhone()
+		if telephone == "" {
+			panic("telephone")
+		}
+		whotele = telephone
+	}
 	logfile, err := os.OpenFile(whotele+"_logfile.txt", os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
@@ -632,24 +708,33 @@ func main() {
 		}
 	}
 	if err := telegramCLI.CurrentUser(); err != nil {
+		if !(os.Getenv("only_sign") == "yes") {
+			fmt.Println(whotele, "badphone")
+			return
+		}
 		var phonenumber string
-		fmt.Println("Enter phonenumber number below: ")
-		fmt.Scanln(&phonenumber)
-		fmt.Println(phonenumber)
-		err := telegramCLI.Authorization(phonenumber)
+		fmt.Println("now_use_phone_number", whotele)
+		phonenumber = whotele
+		err := telegramCLI.Authorization("+86" + phonenumber)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(whotele, err)
+			return
+		}
+	} else {
+		if os.Getenv("only_sign") == "yes" {
+			fmt.Println(whotele, "already_sign")
+			return
 		}
 	}
 	fmt.Println(".")
 	if err := telegramCLI.LoadContacts(); err != nil {
 		log.Fatalf("Failed to load contacts: %s", err)
 	}
-	fmt.Println("..")
-
-	// Show help first time
-	help()
-	fmt.Println("...")
+	// if os.Getenv("only_sign") == "yes" {
+	// 	fmt.Println(whotele, "successful_sign")
+	// 	return
+	// }
+	fmt.Printf("now.begin.invite.with.%v\n", whotele)
 
 	err = telegramCLI.Run()
 	if err != nil {
